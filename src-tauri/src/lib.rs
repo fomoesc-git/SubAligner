@@ -20,8 +20,26 @@ fn start_engine(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> Res
         .map_err(|e| format!("Failed to create sidecar command: {}", e))?
         .args(["--port", &picked_port.to_string()]);
 
-    sidecar_command.spawn()
-        .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
+    let (mut rx, _child) = sidecar_command.spawn()
+        .map_err(|e| format!(
+            "AI 引擎启动失败: {}\n\n可能原因：\n1. 缺少 AI 引擎可执行文件\n2. 系统不兼容\n\n请尝试重新安装 SubAligner", e
+        ))?;
+
+    // Monitor sidecar output for early crash detection
+    let port = picked_port;
+    std::thread::spawn(move || {
+        if let Some(event) = rx.blocking_recv() {
+            match event {
+                tauri_plugin_shell::process::CommandEvent::Terminated(status) => {
+                    eprintln!("[SubAligner] Engine process exited with status: {:?}", status);
+                }
+                tauri_plugin_shell::process::CommandEvent::Error(err) => {
+                    eprintln!("[SubAligner] Engine error: {}", err);
+                }
+                _ => {}
+            }
+        }
+    });
 
     *port_guard = Some(picked_port);
 

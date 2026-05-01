@@ -7,7 +7,7 @@ import type { SubtitleEntry } from "../stores/project";
 async function request(path: string, options?: RequestInit, retries: number = 2): Promise<any> {
   const settings = useSettingsStore();
   if (!settings.enginePort) {
-    throw new Error("引擎未启动，请等待引擎启动后重试");
+    throw new Error("AI 引擎未启动，请等待引擎启动后重试。如果持续出现此问题，请尝试重启 SubAligner");
   }
   const url = `http://127.0.0.1:${settings.enginePort}${path}`;
 

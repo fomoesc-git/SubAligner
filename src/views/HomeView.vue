@@ -20,7 +20,7 @@ onMounted(async () => {
       await startEngine();
       message.success("AI 引擎已就绪");
     } catch (e: any) {
-      message.error(`AI 引擎启动失败: ${e.message}`);
+      message.error(`AI 引擎启动失败: ${e.message}`, { duration: 10000 });
     }
   }
 });

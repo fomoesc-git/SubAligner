@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import List
+from core.ffmpeg_utils import get_ffmpeg_path
 
 
 class AudioProcessor:
@@ -39,7 +40,7 @@ class AudioProcessor:
 
         # Convert using ffmpeg
         cmd = [
-            "ffmpeg", "-y", "-i", str(audio_path),
+            get_ffmpeg_path(), "-y", "-i", str(audio_path),
             "-ar", "16000",       # 16kHz sample rate
             "-ac", "1",           # mono
             "-f", "wav",
@@ -51,7 +52,7 @@ class AudioProcessor:
                 cmd, capture_output=True, text=True, check=True,
             )
         except FileNotFoundError:
-            raise RuntimeError("ffmpeg not found. Please install ffmpeg first.")
+            raise RuntimeError("ffmpeg not found. Please install ffmpeg first, or use the bundled version.")
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Audio preprocessing failed: {e.stderr}")
 
@@ -74,7 +75,7 @@ class AudioProcessor:
 
         # Use ffmpeg to get raw PCM data
         cmd = [
-            "ffmpeg", "-i", wav_path,
+            get_ffmpeg_path(), "-i", wav_path,
             "-f", "s16le",       # 16-bit PCM
             "-ac", "1",           # mono
             "-ar", "8000",        # Downsample for visualization

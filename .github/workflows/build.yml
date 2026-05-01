@@ -24,6 +24,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Install ffmpeg (required by sidecar for audio processing)
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg
+
       # Python Sidecar
       - name: Set up Python
         uses: actions/setup-python@v5

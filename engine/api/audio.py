@@ -1,10 +1,12 @@
 """Audio processing API endpoints"""
 import os
+import sys
 import subprocess
 import asyncio
 from pathlib import Path
 from fastapi import APIRouter
 from pydantic import BaseModel
+from core.ffmpeg_utils import get_ffprobe_path
 
 router = APIRouter()
 
@@ -35,7 +37,7 @@ async def get_audio_info(req: AudioInfoRequest):
     def _probe():
         result = subprocess.run(
             [
-                "ffprobe", "-v", "quiet",
+                get_ffprobe_path(), "-v", "quiet",
                 "-print_format", "json",
                 "-show_format", "-show_streams",
                 str(audio_path),

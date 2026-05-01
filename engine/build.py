@@ -2,10 +2,17 @@
 PyInstaller build script for SubAligner Engine
 Builds the Python engine into a standalone executable
 """
+import os
 import subprocess
 import sys
 import platform
+import shutil
 from pathlib import Path
+
+
+def find_binary(name: str) -> str | None:
+    """Find a binary on the system PATH"""
+    return shutil.which(name)
 
 
 def build():
@@ -43,6 +50,16 @@ def build():
         "main.py",
     ]
 
+    # Bundle ffmpeg and ffprobe if available (required for offline use)
+    for binary_name in ["ffmpeg", "ffprobe"]:
+        binary_path = find_binary(binary_name)
+        if binary_path:
+            cmd.extend(["--add-binary", f"{binary_path}{os.pathsep}."])
+            print(f"Found {binary_name}: {binary_path}")
+        else:
+            print(f"WARNING: {binary_name} not found on system. "
+                  f"Audio processing may not work offline.")
+
     subprocess.run(cmd, check=True)
 
     # Copy to Tauri binaries directory
@@ -54,7 +71,6 @@ def build():
     src = dist_dir / f"{output_name}{ext}"
 
     if src.exists():
-        import shutil
         dest = tauri_bin_dir / f"{output_name}{ext}"
         shutil.copy2(src, dest)
         print(f"Copied to: {dest}")
