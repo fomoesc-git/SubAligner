@@ -6,7 +6,7 @@ import type { SubtitleEntry } from "../stores/project";
 
 async function request(path: string, options?: RequestInit, retries: number = 2): Promise<any> {
   const settings = useSettingsStore();
-  if (!settings.enginePort) {
+  if (!settings.enginePort || !settings.engineReady) {
     throw new Error("AI 引擎未启动，请等待引擎启动后重试。如果持续出现此问题，请尝试重启 SubAligner");
   }
   const url = `http://127.0.0.1:${settings.enginePort}${path}`;
@@ -58,17 +58,74 @@ export async function checkHealth(): Promise<boolean> {
 }
 
 export async function startEngine(): Promise<number> {
-  const port = await invoke<number>("start_engine");
   const settings = useSettingsStore();
-  settings.setEnginePort(port);
-  for (let i = 0; i < 30; i++) {
+
+  // Reset any stale state
+  settings.setEngineReady(false);
+  settings.setEnginePort(null as any);
+  await invoke("reset_engine");
+
+  const port = await invoke<number>("start_engine");
+
+  // Wait for engine to actually be ready before setting port
+  // PyInstaller onefile with PyTorch can take 30-60 seconds to extract and start
+  const maxAttempts = 120; // 60 seconds
+  for (let i = 0; i < maxAttempts; i++) {
     await new Promise((r) => setTimeout(r, 500));
-    if (await checkHealth()) {
-      settings.setEngineReady(true);
-      return port;
+
+    // Try direct health check (don't use request() which requires port set)
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/health`, {
+        method: "POST",
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) {
+        settings.setEnginePort(port);
+        settings.setEngineReady(true);
+        return port;
+      }
+    } catch {
+      // Engine not ready yet, continue waiting
     }
   }
-  throw new Error("Engine failed to start within 15 seconds");
+
+  // Engine failed to start - clean up
+  settings.setEnginePort(null as any);
+  settings.setEngineReady(false);
+  await invoke("reset_engine");
+
+  throw new Error(
+    "AI 引擎启动超时（60秒）\n\n" +
+    "可能原因：\n" +
+    "1. macOS 安全限制阻止了引擎运行 → 请前往 系统设置 → 隐私与安全性 → 允许运行\n" +
+    "2. 杀毒软件拦截了引擎进程 → 请将 SubAligner 加入白名单\n" +
+    "3. 引擎内部错误 → 请重启 SubAligner 重试"
+  );
+}
+
+export async function restartEngine(): Promise<number> {
+  return startEngine();
+}
+
+// Listen for engine crash events
+let engineListenerSetup = false;
+
+export function setupEngineListener(onCrash: (msg: string) => void) {
+  if (engineListenerSetup) return;
+  engineListenerSetup = true;
+
+  listen<string>("engine-exit", (event) => {
+    const settings = useSettingsStore();
+    settings.setEngineReady(false);
+    onCrash(event.payload);
+  });
+
+  listen<string>("engine-error", (event) => {
+    const msg = event.payload;
+    if (msg.includes("Error") || msg.includes("Traceback")) {
+      onCrash(msg);
+    }
+  });
 }
 
 export async function getAudioInfo(audioPath: string) {

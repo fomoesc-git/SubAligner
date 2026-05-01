@@ -18,12 +18,15 @@ export const useSettingsStore = defineStore("settings", () => {
     userManualChoice.value = true;
   }
 
-  function setEnginePort(port: number) {
+  function setEnginePort(port: number | null) {
     enginePort.value = port;
   }
 
   function setEngineReady(ready: boolean) {
     engineReady.value = ready;
+    if (!ready) {
+      enginePort.value = null;
+    }
   }
 
   // Auto-switch dark mode based on time every 2 minutes

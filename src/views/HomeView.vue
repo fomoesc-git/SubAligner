@@ -1,32 +1,71 @@
 <script setup lang="ts">
-import { NButton } from "naive-ui";
+import { NButton, NSpin } from "naive-ui";
 import { useProjectStore } from "../stores/project";
 import { useSettingsStore } from "../stores/settings";
-import { alignAudio, startEngine } from "../composables/useApi";
+import { startEngine, restartEngine, setupEngineListener, alignAudio } from "../composables/useApi";
 import { useMessage } from "naive-ui";
 import AudioUploader from "../components/AudioUploader.vue";
 import ScriptEditor from "../components/ScriptEditor.vue";
 import SubtitleList from "../components/SubtitleList.vue";
 import ProgressOverlay from "../components/ProgressOverlay.vue";
-import { onMounted } from "vue";
+import { onMounted, ref, computed } from "vue";
 
 const project = useProjectStore();
 const settings = useSettingsStore();
 const message = useMessage();
 
+const engineStarting = ref(false);
+const engineFailed = ref(false);
+const engineFailMsg = ref("");
+
+const engineStatus = computed(() => {
+  if (settings.engineReady) return "ready";
+  if (engineStarting.value) return "starting";
+  if (engineFailed.value) return "failed";
+  return "idle";
+});
+
 onMounted(async () => {
   if (!settings.engineReady) {
-    try {
-      await startEngine();
-      message.success("AI 引擎已就绪");
-    } catch (e: any) {
-      message.error(`AI 引擎启动失败: ${e.message}`, { duration: 10000 });
-    }
+    await doStartEngine();
   }
+
+  // Listen for engine crash events
+  setupEngineListener((msg) => {
+    settings.setEngineReady(false);
+    engineFailed.value = true;
+    engineFailMsg.value = msg;
+    message.error("AI 引擎意外退出，请点击重试", { duration: 10000 });
+  });
 });
+
+async function doStartEngine() {
+  engineStarting.value = true;
+  engineFailed.value = false;
+  engineFailMsg.value = "";
+
+  try {
+    await startEngine();
+    message.success("AI 引擎已就绪");
+  } catch (e: any) {
+    engineFailed.value = true;
+    engineFailMsg.value = e?.message || "未知错误";
+    message.error(`AI 引擎启动失败`, { duration: 10000 });
+  } finally {
+    engineStarting.value = false;
+  }
+}
+
+async function handleRetry() {
+  await doStartEngine();
+}
 
 async function handleGenerate() {
   if (!project.canGenerate) return;
+  if (!settings.engineReady) {
+    message.error("AI 引擎未就绪，请等待引擎启动");
+    return;
+  }
   project.isProcessing = true;
   project.processStage = "vad";
   project.processPercent = 10;
@@ -54,6 +93,22 @@ async function handleGenerate() {
     <!-- Left Panel: Input -->
     <div class="panel-left">
       <div class="panel-left-top">
+        <!-- Engine Status Banner -->
+        <div v-if="engineStatus === 'starting'" class="engine-banner engine-banner-starting">
+          <NSpin size="small" />
+          <span>AI 引擎启动中，请稍候（首次启动可能需要30-60秒）...</span>
+        </div>
+        <div v-if="engineStatus === 'failed'" class="engine-banner engine-banner-failed">
+          <div class="engine-banner-content">
+            <span class="engine-fail-icon">⚠️</span>
+            <div class="engine-fail-text">
+              <strong>AI 引擎启动失败</strong>
+              <span v-if="engineFailMsg" class="engine-fail-detail">{{ engineFailMsg }}</span>
+            </div>
+          </div>
+          <NButton size="small" type="primary" @click="handleRetry">重试</NButton>
+        </div>
+
         <div class="panel-section">
           <div class="section-label">
             <span class="label-dot" />
@@ -79,7 +134,7 @@ async function handleGenerate() {
           type="primary"
           size="large"
           block
-          :disabled="!project.canGenerate"
+          :disabled="!project.canGenerate || !settings.engineReady"
           :loading="project.isProcessing"
           @click="handleGenerate"
           class="generate-btn"
@@ -240,6 +295,63 @@ async function handleGenerate() {
 .generate-btn :deep(.n-button__state-border) {
   display: none !important;
   border: none !important;
+}
+
+/* Engine status banner */
+.engine-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 14px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.engine-banner-starting {
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px solid rgba(245, 166, 35, 0.3);
+  color: var(--text-secondary);
+}
+
+.engine-banner-failed {
+  background: rgba(208, 48, 80, 0.08);
+  border: 1px solid rgba(208, 48, 80, 0.25);
+  justify-content: space-between;
+}
+
+.engine-banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.engine-fail-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.engine-fail-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.engine-fail-text strong {
+  font-size: 13px;
+  color: #d03050;
+}
+
+.engine-fail-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  word-break: break-word;
+  max-height: 60px;
+  overflow-y: auto;
 }
 
 /* Empty state */
