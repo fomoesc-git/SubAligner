@@ -4,6 +4,9 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -13,11 +16,9 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             rust_target: aarch64-apple-darwin
-            bundle_args: --bundles dmg
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             rust_target: x86_64-pc-windows-msvc
-            bundle_args: --bundles msi,nsis
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -35,13 +36,7 @@ jobs:
           pip install -r engine/requirements.txt
           pip install pyinstaller
 
-      - name: Build Python Sidecar (macOS)
-        if: runner.os == 'macOS'
-        working-directory: engine
-        run: python build.py
-
-      - name: Build Python Sidecar (Windows)
-        if: runner.os == 'Windows'
+      - name: Build Python Sidecar
         working-directory: engine
         run: python build.py
 
@@ -66,19 +61,10 @@ jobs:
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'SubAligner ${{ github.ref_name }}'
           releaseBody: 'See the assets to download this version.'
           releaseDraft: true
-
-      # Windows: upload standalone exe from NSIS installer
-      - name: Upload Windows portable info
-        if: runner.os == 'Windows'
-        run: |
-          echo "Windows builds include:"
-          echo "1. SubAligner_x64_en-US.msi - MSI installer"
-          echo "2. SubAligner_x64-setup.exe - NSIS installer (single-file installer)"
-          echo ""
-          echo "Note: Tauri apps require WebView2 runtime and resources, so a true single-file portable exe is not supported."
-          echo "The NSIS setup.exe is the closest to a single-file distribution."
