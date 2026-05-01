@@ -1,6 +1,6 @@
 [package]
 name = "subaligner"
-version = "1.0.0"
+version = "1.0.1"
 description = "配音文案字幕生成器 - AI 强制对齐 + 去静音"
 authors = ["SubAligner"]
 edition = "2021"
