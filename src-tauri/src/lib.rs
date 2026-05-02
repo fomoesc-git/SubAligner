@@ -1,5 +1,7 @@
 use std::sync::Mutex;
 
+use tauri::{Emitter, Manager};
+
 struct AppState {
     engine_port: Mutex<Option<u16>>,
 }
