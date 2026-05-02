@@ -2,7 +2,7 @@
 import { NButton, NSpin } from "naive-ui";
 import { useProjectStore } from "../stores/project";
 import { useSettingsStore } from "../stores/settings";
-import { startEngine, restartEngine, setupEngineListener, alignAudio } from "../composables/useApi";
+import { startEngine, setupEngineListener, alignAudio } from "../composables/useApi";
 import { useMessage } from "naive-ui";
 import AudioUploader from "../components/AudioUploader.vue";
 import ScriptEditor from "../components/ScriptEditor.vue";
