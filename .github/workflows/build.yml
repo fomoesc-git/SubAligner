@@ -60,31 +60,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install ffmpeg (required by sidecar for audio processing)
-      - name: Install ffmpeg (macOS)
-        if: runner.os == 'macOS'
-        run: brew install ffmpeg
-
-      - name: Install ffmpeg (Windows)
-        if: runner.os == 'Windows'
-        run: choco install ffmpeg
-
-      # Python Sidecar
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r engine/requirements.txt
-          pip install pyinstaller
-
-      - name: Build Python Sidecar
-        working-directory: engine
-        run: python build.py
-
       # Frontend
       - uses: actions/setup-node@v4
         with:
@@ -111,5 +86,18 @@ jobs:
         with:
           tagName: ${{ needs.prepare.outputs.version }}
           releaseName: 'SubAligner ${{ needs.prepare.outputs.version }}'
-          releaseBody: 'See the assets to download this version.'
+          releaseBody: |
+            ## SubAligner v${{ needs.prepare.outputs.version }}
+            配音文案字幕生成器 - 支持 Windows 和 macOS
+
+            **注意**: 首次运行需要安装 Python 3.11+ 环境（用于驱动 AI 引擎）
+
+            ### Windows 用户
+            请确保已安装 Python 3.11 或更高版本: https://www.python.org/downloads/
+
+            ### macOS 用户
+            请确保已安装 Python 3（推荐使用 Homebrew）:
+            ```
+            brew install python@3.11
+            ```
           releaseDraft: true

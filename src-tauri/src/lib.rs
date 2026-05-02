@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 
-use tauri::{Emitter, Manager};
+use tauri::Manager;
+use tauri_plugin_shell::ShellExt;
 
 struct AppState {
     engine_port: Mutex<Option<u16>>,
@@ -16,63 +17,42 @@ fn start_engine(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> Res
     let picked_port = portpicker::pick_unused_port()
         .ok_or("No available port found")?;
 
-    use tauri_plugin_shell::ShellExt;
+    // Find the bundled engine directory inside the app resources
+    let engine_dir = if let Ok(resource_dir) = app.path().resource_dir() {
+        resource_dir.join("engine")
+    } else {
+        return Err("无法获取应用资源目录".into());
+    };
 
-    // On macOS, remove quarantine attribute from sidecar binary
-    // so Gatekeeper doesn't block it from running
-    #[cfg(target_os = "macos")]
-    {
-        if let Ok(resource_dir) = app.path().resource_dir() {
-            let binaries_dir = resource_dir.join("binaries");
-            if binaries_dir.exists() {
-                // Remove quarantine from the entire binaries directory
-                let _ = std::process::Command::new("xattr")
-                    .args(["-cr", &binaries_dir.to_string_lossy()])
-                    .output();
-            }
-        }
+    if !engine_dir.exists() {
+        return Err(format!("引擎目录不存在: {}", engine_dir.display()));
     }
 
-    let sidecar_command = app.shell()
-        .sidecar("subaligner-engine")
-        .map_err(|e| format!("Failed to create sidecar command: {}", e))?
-        .args(["--port", &picked_port.to_string()]);
+    // On macOS, remove quarantine attribute so Gatekeeper doesn't block the engine
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("xattr")
+            .args(["-cr", &engine_dir.to_string_lossy()])
+            .output();
+    }
 
-    let (mut rx, _child) = sidecar_command.spawn()
+    // Find Python interpreter
+    let python_cmd = if cfg!(target_os = "windows") { "python" } else { "python3" };
+
+    let main_py = engine_dir.join("main.py");
+    if !main_py.exists() {
+        return Err(format!("引擎入口文件不存在: {}", main_py.display()));
+    }
+
+    // Spawn the Python engine process
+    app.shell()
+        .command(python_cmd)
+        .args([main_py.to_string_lossy().as_ref(), "--port", &picked_port.to_string()])
+        .spawn()
         .map_err(|e| format!(
-            "AI 引擎启动失败: {}\n\n可能原因：\n1. 缺少 AI 引擎可执行文件\n2. 系统不兼容\n3. macOS 安全限制阻止了引擎运行\n\n请尝试：系统设置 → 隐私与安全性 → 允许运行",
+            "AI 引擎启动失败: {}\n\n可能原因:\n1. 系统缺少 Python 环境\n2. macOS 安全限制阻止了引擎运行\n3. 杀毒软件拦截了引擎进程",
             e
         ))?;
-
-    // Monitor sidecar output for crash detection and logging
-    let app_handle = app.clone();
-    std::thread::spawn(move || {
-        while let Some(event) = rx.blocking_recv() {
-            match event {
-                tauri_plugin_shell::process::CommandEvent::Terminated(status) => {
-                    eprintln!("[SubAligner] Engine process exited with status: {:?}", status);
-                    let msg = format!("AI 引擎已退出 (状态: {:?})", status);
-                    let _ = app_handle.emit("engine-exit", &msg);
-                }
-                tauri_plugin_shell::process::CommandEvent::Error(err) => {
-                    eprintln!("[SubAligner] Engine error: {}", err);
-                    let _ = app_handle.emit("engine-error", &err);
-                }
-                tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
-                    eprintln!("[SubAligner] Engine stdout: {}", String::from_utf8_lossy(&line));
-                }
-                tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
-                    let msg = String::from_utf8_lossy(&line).to_string();
-                    eprintln!("[SubAligner] Engine stderr: {}", msg);
-                    // Forward important stderr to frontend
-                    if msg.contains("Error") || msg.contains("error") || msg.contains("Traceback") {
-                        let _ = app_handle.emit("engine-error", &msg);
-                    }
-                }
-                _ => {}
-            }
-        }
-    });
 
     *port_guard = Some(picked_port);
     Ok(picked_port)
