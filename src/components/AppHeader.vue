@@ -12,7 +12,7 @@ const settings = useSettingsStore();
       <div class="brand-icon">S</div>
       <span class="brand-name">SubAligner</span>
       <span class="brand-tag">配音字幕生成</span>
-      <span class="brand-version">V1.0.2</span>
+      <span class="brand-version">V1.0.4</span>
     </div>
     <div class="header-meta">
       <span class="meta-credit">本工具由@常宁千影设计</span>
