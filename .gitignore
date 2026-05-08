@@ -28,8 +28,12 @@ engine/.pyinstaller-cache/
 engine/bin/*
 !engine/bin/.gitkeep
 
-# AI models (large files, download separately)
-engine/models/
+# AI model weights/cache (large files, download separately)
+engine/models/*
+!engine/models/*.py
+!engine/models/.gitkeep
+engine/models/modelscope_cache/
+engine/models/wav2vec2_base_960h/
 
 # Editor directories and files
 .vscode/*
