@@ -52,7 +52,7 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             rust_target: aarch64-apple-darwin
-            bundles: app,dmg
+            bundles: app
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             rust_target: x86_64-pc-windows-msvc
@@ -99,6 +99,10 @@ jobs:
 
       - name: Build Tauri app
         run: npm run tauri -- build --bundles "${{ matrix.bundles }}"
+
+      - name: Zip macOS app bundle
+        if: runner.os == 'macOS'
+        run: ditto -c -k --sequesterRsrc --keepParent src-tauri/target/release/bundle/macos/SubAligner.app "src-tauri/target/release/bundle/macos/SubAligner_${{ needs.prepare.outputs.version }}_aarch64.app.zip"
 
       - name: Create draft release
         env:
