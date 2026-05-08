@@ -104,7 +104,19 @@ jobs:
         if: runner.os == 'macOS'
         run: ditto -c -k --sequesterRsrc --keepParent src-tauri/target/release/bundle/macos/SubAligner.app "src-tauri/target/release/bundle/macos/SubAligner_${{ needs.prepare.outputs.version }}_aarch64.app.zip"
 
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: subaligner-${{ matrix.target }}
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.zip
+          if-no-files-found: error
+
       - name: Create draft release
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -117,6 +129,7 @@ jobs:
             gh release view "${{ needs.prepare.outputs.version }}" >/dev/null
 
       - name: Upload release assets
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
