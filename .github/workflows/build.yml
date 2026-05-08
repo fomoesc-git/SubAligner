@@ -97,9 +97,6 @@ jobs:
         with:
           targets: ${{ matrix.rust_target }}
 
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
-
       - name: Build Tauri app
         run: npm run tauri -- build --bundles "${{ matrix.bundles }}"
 
