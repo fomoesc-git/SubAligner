@@ -52,9 +52,11 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             rust_target: aarch64-apple-darwin
+            bundles: app,dmg
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             rust_target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -99,15 +101,34 @@ jobs:
         run: cargo install tauri-cli --version "^2"
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+        run: npm run tauri -- build --bundles "${{ matrix.bundles }}"
+
+      - name: Create draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ needs.prepare.outputs.version }}
-          releaseName: 'SubAligner ${{ needs.prepare.outputs.version }}'
-          releaseBody: |
-            ## SubAligner v${{ needs.prepare.outputs.version }}
-            配音文案字幕生成器 - 支持 Windows 和 macOS
+        shell: bash
+        run: |
+          gh release view "${{ needs.prepare.outputs.version }}" >/dev/null 2>&1 || \
+            gh release create "${{ needs.prepare.outputs.version }}" \
+              --title "SubAligner ${{ needs.prepare.outputs.version }}" \
+              --draft \
+              --notes "配音文案字幕生成器 - 支持 Windows 和 macOS。此版本已内置 AI 引擎、Python 运行环境依赖和 FFmpeg，不再要求用户自行安装 Python。"
 
-            此版本已内置 AI 引擎、Python 运行环境依赖和 FFmpeg，不再要求用户自行安装 Python。
-          releaseDraft: true
+      - name: Upload release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          assets=(
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.zip
+          )
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "No release assets found"
+            find src-tauri/target/release/bundle -maxdepth 5 -type f || true
+            exit 1
+          fi
+          gh release upload "${{ needs.prepare.outputs.version }}" "${assets[@]}" --clobber
