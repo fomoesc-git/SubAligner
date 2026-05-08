@@ -109,7 +109,8 @@ jobs:
             gh release create "${{ needs.prepare.outputs.version }}" \
               --title "SubAligner ${{ needs.prepare.outputs.version }}" \
               --draft \
-              --notes "配音文案字幕生成器 - 支持 Windows 和 macOS。此版本已内置 AI 引擎、Python 运行环境依赖和 FFmpeg，不再要求用户自行安装 Python。"
+              --notes "配音文案字幕生成器 - 支持 Windows 和 macOS。此版本已内置 AI 引擎、Python 运行环境依赖和 FFmpeg，不再要求用户自行安装 Python。" || \
+            gh release view "${{ needs.prepare.outputs.version }}" >/dev/null
 
       - name: Upload release assets
         env:
