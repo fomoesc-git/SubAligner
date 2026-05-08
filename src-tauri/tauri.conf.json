@@ -36,7 +36,12 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../engine": "engine"
+      "../engine/main.py": "engine/main.py",
+      "../engine/requirements.txt": "engine/requirements.txt",
+      "../engine/api/*.py": "engine/api/",
+      "../engine/core/*.py": "engine/core/",
+      "../engine/models/*.py": "engine/models/",
+      "../engine/bin/*": "engine/bin/"
     }
   },
   "plugins": {

@@ -1,6 +1,6 @@
 """
 SubAligner Engine - Python FastAPI Sidecar
-AI-powered forced alignment + silence removal
+AI-powered forced alignment
 """
 import sys
 import argparse
@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import align, audio, silence, export, model
+from api import align, audio, export, model
 
 app = FastAPI(title="SubAligner Engine", version="0.1.0")
 
@@ -21,7 +21,6 @@ app.add_middleware(
 
 app.include_router(align.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")
-app.include_router(silence.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
 app.include_router(model.router, prefix="/api")
 

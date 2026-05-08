@@ -23,6 +23,10 @@ __pycache__/
 engine/dist/
 engine/build/
 engine/.venv/
+engine/.matplotlib-cache/
+engine/.pyinstaller-cache/
+engine/bin/*
+!engine/bin/.gitkeep
 
 # AI models (large files, download separately)
 engine/models/

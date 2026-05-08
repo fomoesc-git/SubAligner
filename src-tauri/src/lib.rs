@@ -1,7 +1,7 @@
+use std::process::Command;
 use std::sync::Mutex;
 
 use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
 
 struct AppState {
     engine_port: Mutex<Option<u16>>,
@@ -36,23 +36,85 @@ fn start_engine(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> Res
             .output();
     }
 
-    // Find Python interpreter
-    let python_cmd = if cfg!(target_os = "windows") { "python" } else { "python3" };
+    let port_arg = picked_port.to_string();
 
-    let main_py = engine_dir.join("main.py");
-    if !main_py.exists() {
-        return Err(format!("引擎入口文件不存在: {}", main_py.display()));
+    // 1) Prefer bundled standalone engine executable (for production packages)
+    let bundled_engine_name = if cfg!(target_os = "windows") {
+        "subaligner-engine-x86_64-pc-windows-msvc.exe"
+    } else if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            "subaligner-engine-aarch64-apple-darwin"
+        } else {
+            "subaligner-engine-x86_64-apple-darwin"
+        }
+    } else {
+        if cfg!(target_arch = "aarch64") {
+            "subaligner-engine-aarch64-unknown-linux"
+        } else {
+            "subaligner-engine-x86_64-unknown-linux"
+        }
+    };
+
+    let bundled_engine_path = engine_dir.join("bin").join(bundled_engine_name);
+    let mut started = false;
+    let mut start_errors: Vec<String> = Vec::new();
+
+    if bundled_engine_path.exists() {
+        if let Err(e) = Command::new(&bundled_engine_path)
+            .arg("--port")
+            .arg(&port_arg)
+            .current_dir(&engine_dir)
+            .spawn()
+        {
+            start_errors.push(format!(
+                "独立引擎可执行文件启动失败 ({}): {}",
+                bundled_engine_path.display(),
+                e
+            ));
+        } else {
+            started = true;
+        }
     }
 
-    // Spawn the Python engine process
-    app.shell()
-        .command(python_cmd)
-        .args([main_py.to_string_lossy().as_ref(), "--port", &picked_port.to_string()])
-        .spawn()
-        .map_err(|e| format!(
-            "AI 引擎启动失败: {}\n\n可能原因:\n1. 系统缺少 Python 环境\n2. macOS 安全限制阻止了引擎运行\n3. 杀毒软件拦截了引擎进程",
-            e
-        ))?;
+    // 2) Fallback to Python script (for local development)
+    if !started {
+        let main_py = engine_dir.join("main.py");
+
+        if main_py.exists() {
+            let python_cmds: &[&str] = if cfg!(target_os = "windows") {
+                &["python", "py"]
+            } else {
+                &["python3", "python"]
+            };
+
+            for python_cmd in python_cmds {
+                match Command::new(python_cmd)
+                    .arg(&main_py)
+                    .arg("--port")
+                    .arg(&port_arg)
+                    .current_dir(&engine_dir)
+                    .spawn()
+                {
+                    Ok(_) => {
+                        started = true;
+                        break;
+                    }
+                    Err(e) => {
+                        start_errors.push(format!("{} 启动失败: {}", python_cmd, e));
+                    }
+                }
+            }
+        } else {
+            start_errors.push(format!("引擎入口文件不存在: {}", main_py.display()));
+        }
+    }
+
+    if !started {
+        return Err(format!(
+            "AI 引擎启动失败。\n\n尝试记录:\n{}\n\n可能原因:\n1. 安装包未包含对应平台引擎二进制\n2. 系统安全策略/杀毒软件拦截了引擎进程\n3. 开发模式下缺少 Python 运行环境",
+            start_errors.join("\n")
+        ));
+    }
 
     *port_guard = Some(picked_port);
     Ok(picked_port)
